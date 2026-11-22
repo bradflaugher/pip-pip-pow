@@ -150,7 +150,7 @@ footer{display:flex;gap:8px;padding-top:10px}
     <li><span class="tag" style="background:var(--c3)">ODD</span> every square is odd (<b>EVEN</b>: all even, blank counts)</li>
     <li><span class="tag" style="background:var(--bg2)">&nbsp;</span> plain squares: anything goes</li>
   </ul>
-  <p><b>Drag</b> a domino to place it. <b>Tap</b> it to rotate. Drag it off the board to put it back. A domino can straddle two zones.</p>
+  <p><b>Drag</b> a domino over two empty squares — it turns to fit, across or down. <b>Tap</b> it to flip it end-for-end. Drag it off the board to put it back. A domino can straddle two zones.</p>
   <p>Levels never run out, and there's a fresh Daily puzzle every day.</p>
   <div class="row"><button class="btn primary" id="helpClose">Let's play</button></div>
 </div></div>
@@ -455,7 +455,7 @@ function loadPuzzle(){
   S=P.doms.map(()=>({ca:-1,d:0,angle:0,hinted:false}));
   const cur=store.cur;
   if(cur&&cur.key===curKey()&&cur.S&&cur.S.length===S.length){
-    cur.S.forEach((x,i)=>{S[i].ca=x[0];S[i].d=x[1];S[i].angle=x[1]*90;S[i].hinted=!!x[2];});tAcc=cur.t||0;hints=cur.hints||0;
+    cur.S.forEach((x,i)=>{S[i].ca=x[0];S[i].d=x[0]<0?x[1]&2:x[1];S[i].angle=x[1]*90;S[i].hinted=!!x[2];});tAcc=cur.t||0;hints=cur.hints||0;
   }
   // DOM
   boardEl.innerHTML='';stage.querySelectorAll('.dom').forEach(e=>e.remove());
@@ -507,10 +507,10 @@ function layout(instant){
   stage.style.minHeight='';
   const W=stage.clientWidth,H=stage.clientHeight,n=P.doms.length;let b;
   let score=-1;
-  for(const ts of [30,28,26,24,22,20,18]){
-    const slot=2*ts+6,cols=Math.max(1,Math.min(n,Math.floor((W-8)/slot))),rows=Math.ceil(n/cols),trayH=rows*slot+8;
-    const s=Math.floor(Math.min(68,(W-24)/P.C,(H-trayH-46)/P.R)),sc=Math.min(1,s/46,ts/24)+Math.min(s/46,1)*.01;
-    if(sc>score){score=sc;b={ts,slot,cols,rows,trayH,s};}
+  for(const ts of [36,34,32,30,28,26,24]){
+    const slot=2*ts+8,slotH=ts+10,cols=Math.max(1,Math.min(n,Math.floor((W-8)/slot))),rows=Math.ceil(n/cols),trayH=rows*slotH+8;
+    const s=Math.floor(Math.min(68,(W-24)/P.C,(H-trayH-46)/P.R)),sc=Math.min(1,s/46,ts/32)+Math.min(s/46,1)*.01;
+    if(sc>score){score=sc;b={ts,slot,slotH,cols,rows,trayH,s};}
   }
   b.s=Math.max(b.s,34);
   const total=16+P.R*b.s+18+b.trayH+6,extra=Math.max(0,H-total);
@@ -525,7 +525,7 @@ function placedCenter(ca,d){
   const c=P.cells[ca],[dr,dc]=DIRS[d];
   return [L.boardLeft+(c.c+.5+dc/2)*L.s,L.boardTop+(c.r+.5+dr/2)*L.s];
 }
-function homeCenter(i){return [L.trayLeft+4+(i%L.cols+.5)*L.slot,L.trayTop+4+(Math.floor(i/L.cols)+.5)*L.slot];}
+function homeCenter(i){return [L.trayLeft+4+(i%L.cols+.5)*L.slot,L.trayTop+4+(Math.floor(i/L.cols)+.5)*L.slotH];}
 function renderDom(i,pos){
   const st=S[i],e=els[i];let x,y,size;
   if(pos){[x,y]=pos;size=L.s;}
@@ -552,8 +552,8 @@ function values(){
   S.forEach((st,i)=>{if(st.ca<0)return;v[st.ca]=P.doms[i].a;v[cellB(st.ca,st.d)]=P.doms[i].b;});
   return v;
 }
-function pushUndo(){
-  undo.push(S.map(s=>[s.ca,s.d,s.hinted]));if(undo.length>200)undo.shift();
+function pushUndo(snap){
+  undo.push(snap||snapshot());if(undo.length>200)undo.shift();
   if(!tStart&&!won)tStart=Date.now();
 }
 function update(silent){
@@ -575,30 +575,30 @@ function update(silent){
 }
 
 function findSpot(i,cx,cy){
-  const occ=occupancy(i),d=S[i].d;let best=null,bd=L.s*.8;
-  for(let ca=0;ca<P.cells.length;ca++){
-    if(occ[ca]>=0)continue;const cb=cellB(ca,d);if(cb<0||occ[cb]>=0)continue;
-    const [x,y]=placedCenter(ca,d),dist=Math.hypot(x-cx,y-cy);
-    if(dist<bd){bd=dist;best=ca;}
+  const occ=occupancy(i);let best=null,bd=L.s*.8;
+  for(const d of [S[i].d,S[i].d^1]){
+    const pen=d===S[i].d?1:1.18;
+    for(let ca=0;ca<P.cells.length;ca++){
+      if(occ[ca]>=0)continue;const cb=cellB(ca,d);if(cb<0||occ[cb]>=0)continue;
+      const [x,y]=placedCenter(ca,d),dist=Math.hypot(x-cx,y-cy)*pen;
+      if(dist<bd){bd=dist;best={ca,d};}
+    }
   }
   return best;
 }
+const snapshot=()=>S.map(s=>[s.ca,s.d,s.hinted]);
+function toTray(i){const st=S[i];st.ca=-1;st.hinted=false;if(st.d&1)setDir(st,st.d^1);}
 function rotate(i){
-  const st=S[i];
-  if(st.ca<0){pushUndo();setDir(st,(st.d+1)%4,true);sfx.rot();renderDom(i);update();return;}
-  const occ=occupancy(i);pushUndo();
-  for(const k of [1,2,3]){
-    const d=(st.d+k)%4,cb=cellB(st.ca,d);
-    if(cb>=0&&occ[cb]<0){setDir(st,d,true);sfx.rot();renderDom(i);update();return;}
-  }
-  const cb=cellB(st.ca,st.d);st.ca=cb;setDir(st,(st.d+2)%4,true);sfx.rot();renderDom(i);update();
+  const st=S[i];pushUndo();
+  if(st.ca>=0)st.ca=cellB(st.ca,st.d);
+  setDir(st,(st.d+2)%4,true);sfx.rot();renderDom(i);update();
 }
 
 /* ---------- Pointer handling ---------- */
 function onDown(e,i){
   if(won||drag||S[i].hinted)return;
   e.preventDefault();els[i].setPointerCapture(e.pointerId);
-  drag={i,id:e.pointerId,x0:e.clientX,y0:e.clientY,moved:false,touch:e.pointerType!=='mouse',ghost:null};
+  drag={i,id:e.pointerId,x0:e.clientX,y0:e.clientY,moved:false,touch:e.pointerType!=='mouse',ghost:'',d0:S[i].d,snap:snapshot()};
 }
 function dragCenter(e){
   const r=stage.getBoundingClientRect();
@@ -611,30 +611,35 @@ function onMove(e){
   if(!drag.moved){
     if(Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)<8)return;
     drag.moved=true;els[i].classList.add('drag');
-    if(drag.touch){drag.ox=0;drag.oy=-L.s*(st.d%2?1.35:.9);}
+    if(drag.touch){drag.ox=0;drag.oy=-L.s*1.15;}
     else{
       const r=stage.getBoundingClientRect(),[hx,hy]=st.ca>=0?placedCenter(st.ca,st.d):homeCenter(i),k=st.ca>=0?1:L.s/L.ts;
       drag.ox=(hx-(drag.x0-r.left))*k;drag.oy=(hy-(drag.y0-r.top))*k;
     }
   }
-  const pos=dragCenter(e);renderDom(i,pos);
-  const spot=findSpot(i,pos[0],pos[1]);
-  if(spot!==drag.ghost){clearGhost();drag.ghost=spot;if(spot!=null){cellEls[spot].classList.add('ghost');cellEls[cellB(spot,st.d)].classList.add('ghost');}}
+  const pos=dragCenter(e),spot=findSpot(i,pos[0],pos[1]);
+  if(spot&&spot.d!==st.d)setDir(st,spot.d);
+  renderDom(i,pos);
+  const key=spot?spot.ca+','+spot.d:'';
+  if(key!==drag.ghost){clearGhost();drag.ghost=key;if(spot){cellEls[spot.ca].classList.add('ghost');cellEls[cellB(spot.ca,spot.d)].classList.add('ghost');}}
 }
 function onUp(e){
   if(!drag||e.pointerId!==drag.id)return;
-  const i=drag.i,st=S[i],moved=drag.moved,pos=moved?dragCenter(e):null;
+  const i=drag.i,st=S[i],moved=drag.moved,pos=moved?dragCenter(e):null,d0=drag.d0,snap=drag.snap;
   els[i].classList.remove('drag');clearGhost();drag=null;
   if(!moved){rotate(i);return;}
   const spot=findSpot(i,pos[0],pos[1]);
-  if(spot!=null){if(spot!==st.ca){pushUndo();st.ca=spot;}sfx.place();}
-  else{
+  if(spot){
+    if(spot.ca!==st.ca||spot.d!==d0)pushUndo(snap);
+    st.ca=spot.ca;setDir(st,spot.d);sfx.place();
+  }else{
+    setDir(st,d0);
     const inBoard=pos[0]>L.boardLeft&&pos[0]<L.boardLeft+P.C*L.s&&pos[1]>L.boardTop&&pos[1]<L.boardTop+P.R*L.s;
-    if(!inBoard&&st.ca>=0){pushUndo();st.ca=-1;sfx.back();}
+    if(!inBoard&&st.ca>=0){pushUndo(snap);toTray(i);sfx.back();}
   }
   renderDom(i);update();
 }
-function onCancel(e){if(!drag||e.pointerId!==drag.id)return;const i=drag.i;els[i].classList.remove('drag');clearGhost();drag=null;renderDom(i);}
+function onCancel(e){if(!drag||e.pointerId!==drag.id)return;const i=drag.i;setDir(S[i],drag.d0);els[i].classList.remove('drag');clearGhost();drag=null;renderDom(i);}
 
 /* ---------- Actions ---------- */
 function doUndo(){
@@ -643,7 +648,7 @@ function doUndo(){
 }
 function doClear(){
   if(won||!S.some(s=>s.ca>=0))return;pushUndo();
-  S.forEach((s,i)=>{s.ca=-1;s.hinted=false;renderDom(i);});sfx.back();update(true);
+  S.forEach((s,i)=>{toTray(i);renderDom(i);});sfx.back();update(true);
 }
 function doHint(){
   if(won)return;
@@ -654,7 +659,7 @@ function doHint(){
   const pool=real.filter(i=>S[i].ca<0),i=(pool.length?pool:real)[0],t=P.sol[i];
   pushUndo();hints++;
   S[i].ca=-1;const occ=occupancy(i);
-  for(const c of [t.ca,cellB(t.ca,t.d)]){const o=occ[c];if(o>=0&&S[o].ca>=0){S[o].ca=-1;S[o].hinted=false;renderDom(o);}}
+  for(const c of [t.ca,cellB(t.ca,t.d)]){const o=occ[c];if(o>=0&&S[o].ca>=0){toTray(o);renderDom(o);}}
   S[i].ca=t.ca;setDir(S[i],t.d);S[i].hinted=true;renderDom(i);
   els[i].classList.remove('pop');els[i].offsetWidth;els[i].classList.add('pop');
   sfx.good();update();

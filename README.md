@@ -15,7 +15,7 @@ Drop every domino on the board so each colored zone's rule comes true. Inspired 
 
 ## Controls
 
-Drag a domino to place it. Tap it to rotate. Drag it off the board to return it to the tray.
+Drag a domino over two empty squares and it turns to fit, across or down. Tap it to flip it end-for-end. Drag it off the board to return it to the tray.
 
 ## Development
 
