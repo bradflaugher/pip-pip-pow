@@ -1,6 +1,6 @@
 # Pip Pip Pow!
 
-Endless domino logic puzzles for your phone or desktop. **Play: https://bradflaugher.github.io/pip-pip-pow/**
+Endless domino logic puzzles for your phone or desktop. **Play: https://pippippow.win/**
 
 Drop every domino on the board so each colored zone's rule comes true. Inspired by domino-and-region logic puzzles; every level here is generated in your browser.
 
