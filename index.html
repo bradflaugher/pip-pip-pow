@@ -751,9 +751,9 @@ $('#btnHelp').onclick=()=>$('#helpModal').classList.add('show');
 $('#helpClose').onclick=()=>closeModal($('#helpModal'));
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m);}));
 addEventListener('keydown',e=>{
-  const open=document.querySelector('.modal.show');
+  const open=[...document.querySelectorAll('.modal.show')].pop();
   if(e.key==='Escape'&&open){e.preventDefault();closeModal(open);return;}
-  if(!open&&(e.metaKey||e.ctrlKey)&&!e.shiftKey&&e.key.toLowerCase()==='z'){e.preventDefault();doUndo();}
+  if(!open&&!drag&&(e.metaKey||e.ctrlKey)&&!e.shiftKey&&e.key.toLowerCase()==='z'){e.preventDefault();doUndo();}
 });
 addEventListener('resize',()=>layout(true));
 document.addEventListener('visibilitychange',()=>{
