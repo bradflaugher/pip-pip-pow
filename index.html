@@ -116,7 +116,7 @@ footer{display:flex;gap:8px;padding-top:10px}
   <header>
     <div class="logo">Pip Pip<b>Pow!</b></div>
     <button class="ibtn" id="btnSound" aria-label="Sound">♪</button>
-    <button class="ibtn" id="btnTheme" aria-label="Theme">◐</button>
+    <button class="ibtn" id="btnTheme" aria-label="Toggle theme"></button>
     <button class="ibtn" id="btnHelp" aria-label="How to play">?</button>
   </header>
   <div class="tabs" id="tabs">
@@ -147,7 +147,7 @@ footer{display:flex;gap:8px;padding-top:10px}
     <li><span class="tag" style="background:var(--c2)">&gt;9</span> pips add up to more than 9</li>
     <li><span class="tag" style="background:var(--c6)">=</span> every square shows the same number</li>
     <li><span class="tag" style="background:var(--c5)">≠</span> every square shows a different number</li>
-    <li><span class="tag" style="background:var(--c3)">ODD</span> every square is odd (<b>EVEN</b>: all even, blank counts)</li>
+    <li><span class="tag" style="background:var(--c3)">ODD</span><span>every square is odd (<b>EVEN</b>: all even, blank counts)</span></li>
     <li><span class="tag" style="background:var(--bg2)">&nbsp;</span> plain squares: anything goes</li>
   </ul>
   <p><b>Drag</b> a domino over two empty squares — it turns to fit, across or down. <b>Tap</b> it to flip it end-for-end. Drag it off the board to put it back. A domino can straddle two zones.</p>
@@ -437,7 +437,7 @@ function buzz(p){try{navigator.vibrate&&navigator.vibrate(p);}catch(e){}}
 const stage=$('#stage'),boardEl=$('#board'),trayEl=$('#tray');
 let mode='easy',level=1,date=today();
 let P,S,els=[],cellEls=[],badgeEls=[],undo=[],hints=0,won=false,L={},drag=null;
-let tAcc=0,tStart=0,regState=[];
+let tAcc=0,tStart=0,regState=[],winTimer=0;
 
 const curKey=()=>mode==='daily'?'daily|'+date:mode+'|'+level;
 const curDiff=()=>mode==='daily'?DAILY_DIFF[parseDate(date).getDay()]:mode;
@@ -450,12 +450,13 @@ function pipHalf(v){
 }
 
 function loadPuzzle(){
+  clearTimeout(winTimer);winTimer=0;
   P=generate(curDiff(),curKey());
   won=false;hints=0;undo=[];tAcc=0;tStart=0;regState=P.regions.map(()=>0);
   S=P.doms.map(()=>({ca:-1,d:0,angle:0,hinted:false}));
   const cur=store.cur;
   if(cur&&cur.key===curKey()&&cur.S&&cur.S.length===S.length){
-    cur.S.forEach((x,i)=>{S[i].ca=x[0];S[i].d=x[0]<0?x[1]&2:x[1];S[i].angle=x[1]*90;S[i].hinted=!!x[2];});tAcc=cur.t||0;hints=cur.hints||0;
+    cur.S.forEach((x,i)=>{S[i].ca=x[0];S[i].d=x[0]<0?x[1]&2:x[1];S[i].angle=S[i].d*90;S[i].hinted=!!x[2];});tAcc=cur.t||0;hints=cur.hints||0;
   }
   // DOM
   boardEl.innerHTML='';stage.querySelectorAll('.dom').forEach(e=>e.remove());
@@ -496,6 +497,7 @@ function renderChrome(){
     $('#prev').disabled=level<=1;$('#next').disabled=false;
   }
   $('#btnSound').style.opacity=store.sound?1:.4;
+  $('#btnSound').setAttribute('aria-pressed',store.sound?'true':'false');
   const h=mode==='daily'?'#daily-'+date:'#'+mode+'-'+level;
   if(location.hash!==h)history.replaceState(null,'',h);
   store.mode=mode;if(mode!=='daily')store.levels[mode]=level;save();
@@ -554,7 +556,6 @@ function values(){
 }
 function pushUndo(snap){
   undo.push(snap||snapshot());if(undo.length>200)undo.shift();
-  if(!tStart&&!won)tStart=Date.now();
 }
 function update(silent){
   const v=values();let allOk=true,newGood=false,newBad=false;
@@ -567,7 +568,8 @@ function update(silent){
     if(badgeEls[gi]){badgeEls[gi].classList.toggle('ok',state===1);badgeEls[gi].classList.toggle('bad',state===2);}
     for(const i of G.cells){cellEls[i].classList.toggle('bad',state===2);cellEls[i].classList.toggle('ok',state===1);}
   });
-  $('#btnUndo').disabled=!undo.length||won;$('#btnHint').disabled=won;$('#btnClear').disabled=won;
+  if(!silent&&!tStart&&!won&&S.some(s=>s.ca>=0))tStart=Date.now();
+  $('#btnUndo').disabled=!undo.length||won;$('#btnHint').disabled=won;$('#btnClear').disabled=won||!S.some(s=>s.ca>=0&&!s.hinted);
   $('#btnSkip').textContent=won?'Next ›':'Skip ›';
   if(!silent){if(newBad)sfx.bad();else if(newGood&&!allOk)sfx.good();}
   if(allOk&&!won&&!silent)win();
@@ -589,6 +591,7 @@ function findSpot(i,cx,cy){
 const snapshot=()=>S.map(s=>[s.ca,s.d,s.hinted]);
 function toTray(i){const st=S[i];st.ca=-1;st.hinted=false;if(st.d&1)setDir(st,st.d^1);}
 function rotate(i){
+  if(P.doms[i].a===P.doms[i].b)return;
   const st=S[i];pushUndo();
   if(st.ca>=0)st.ca=cellB(st.ca,st.d);
   setDir(st,(st.d+2)%4,true);sfx.rot();renderDom(i);update();
@@ -647,8 +650,8 @@ function doUndo(){
   snap.forEach((x,i)=>{S[i].ca=x[0];setDir(S[i],x[1]);S[i].hinted=x[2];renderDom(i);});sfx.back();update(true);
 }
 function doClear(){
-  if(won||!S.some(s=>s.ca>=0))return;pushUndo();
-  S.forEach((s,i)=>{toTray(i);renderDom(i);});sfx.back();update(true);
+  if(won||!S.some(s=>s.ca>=0&&!s.hinted))return;pushUndo();
+  S.forEach((s,i)=>{if(s.ca>=0&&!s.hinted){toTray(i);renderDom(i);}});sfx.back();update(true);
 }
 function doHint(){
   if(won)return;
@@ -694,7 +697,7 @@ function win(){
   h+=mode==='daily'?`<div>${streak()}<span>Day streak</span></div>`:`<div>${store.total}<span>Solved</span></div>`;
   $('#winStats').innerHTML=h;
   $('#btnNext').textContent=mode==='daily'?'More puzzles ›':'Next ›';
-  setTimeout(()=>{if(won)$('#winModal').classList.add('show');},900);
+  winTimer=setTimeout(()=>{if(won)$('#winModal').classList.add('show');},900);
 }
 function share(){
   const diff=curDiff(),stars=hints===0?3:hints===1?2:1;
@@ -723,10 +726,19 @@ function confetti(){
 }
 
 /* ---------- Wiring ---------- */
+const ICON_MOON='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+const ICON_SUN='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>';
 function applyTheme(){
   const t=store.theme||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
   document.documentElement.dataset.theme=t;
   document.querySelector('meta[name=theme-color]').content=t==='dark'?'#14172b':'#f4ecdf';
+  const btn=$('#btnTheme');
+  btn.innerHTML=t==='dark'?ICON_SUN:ICON_MOON;
+  btn.setAttribute('aria-label',t==='dark'?'Switch to light theme':'Switch to dark theme');
+}
+function closeModal(m){
+  m.classList.remove('show');
+  if(m.id==='helpModal'&&!store.seenHelp){store.seenHelp=true;save();}
 }
 $('#tabs').addEventListener('click',e=>{const m=e.target.dataset&&e.target.dataset.m;if(m&&m!==mode)go(m);});
 $('#prev').onclick=()=>step(-1);$('#next').onclick=()=>step(1);
@@ -736,18 +748,24 @@ $('#btnNext').onclick=nextAfterWin;$('#btnShare').onclick=share;
 $('#btnSound').onclick=()=>{store.sound=!store.sound;save();renderChrome();sfx.rot();};
 $('#btnTheme').onclick=()=>{store.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';save();applyTheme();};
 $('#btnHelp').onclick=()=>$('#helpModal').classList.add('show');
-$('#helpClose').onclick=()=>{$('#helpModal').classList.remove('show');store.seenHelp=true;save();};
-document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
+$('#helpClose').onclick=()=>closeModal($('#helpModal'));
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m);}));
+addEventListener('keydown',e=>{
+  const open=[...document.querySelectorAll('.modal.show')].pop();
+  if(e.key==='Escape'&&open){e.preventDefault();closeModal(open);return;}
+  if(!open&&!drag&&(e.metaKey||e.ctrlKey)&&!e.shiftKey&&e.key.toLowerCase()==='z'){e.preventDefault();doUndo();}
+});
 addEventListener('resize',()=>layout(true));
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){if(tStart){tAcc=elapsed();tStart=0;}}
   else if(P&&!won&&S.some(s=>s.ca>=0))tStart=Date.now();
 });
 setInterval(()=>{$('#timer').textContent=fmtTime(elapsed());},250);
+const isValidDate=s=>/^\d{4}-\d\d-\d\d$/.test(s)&&fmtDate(parseDate(s))===s;
 function route(){
   const m=/^#(daily|easy|medium|hard|expert)(?:-(.+))?$/.exec(location.hash);
   if(!m){go(store.mode==='daily'?'daily':(DIFFS[store.mode]?store.mode:'easy'));return;}
-  if(m[1]==='daily'){const d=/^\d{4}-\d\d-\d\d$/.test(m[2]||'')&&m[2]<=today()?m[2]:today();go('daily',0,d);}
+  if(m[1]==='daily'){const d=m[2]&&isValidDate(m[2])&&m[2]<=today()?m[2]:today();go('daily',0,d);}
   else go(m[1],parseInt(m[2])||0);
 }
 addEventListener('hashchange',()=>{const h=mode==='daily'?'#daily-'+date:'#'+mode+'-'+level;if(location.hash!==h)route();});
