@@ -417,7 +417,7 @@ function streak(){let d=today(),n=0;if(!store.daily[d])d=addDays(d,-1);while(sto
 /* ---------- Sound ---------- */
 let ac;
 function tone(f,dur=.08,type='triangle',vol=.07,when=0){
-  if(!store.sound)return;
+  if(!store.sound||document.hidden)return;
   try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();
     const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime+when;
     o.type=type;o.frequency.value=f;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
@@ -756,10 +756,12 @@ addEventListener('keydown',e=>{
   if(!open&&!drag&&(e.metaKey||e.ctrlKey)&&!e.shiftKey&&e.key.toLowerCase()==='z'){e.preventDefault();doUndo();}
 });
 addEventListener('resize',()=>layout(true));
+function suspendAudio(){if(ac&&ac.state==='running')ac.suspend().catch(()=>{});}
 document.addEventListener('visibilitychange',()=>{
-  if(document.hidden){if(tStart){tAcc=elapsed();tStart=0;}}
+  if(document.hidden){if(tStart){tAcc=elapsed();tStart=0;}suspendAudio();}
   else if(P&&!won&&S.some(s=>s.ca>=0))tStart=Date.now();
 });
+addEventListener('pagehide',suspendAudio);
 setInterval(()=>{$('#timer').textContent=fmtTime(elapsed());},250);
 const isValidDate=s=>/^\d{4}-\d\d-\d\d$/.test(s)&&fmtDate(parseDate(s))===s;
 function route(){
