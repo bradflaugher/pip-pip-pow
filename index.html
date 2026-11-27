@@ -748,8 +748,8 @@ $('#btnSkip').onclick=()=>won?nextAfterWin():(mode==='daily'?go(store.lastDiff||
 $('#btnNext').onclick=nextAfterWin;$('#btnShare').onclick=share;
 $('#btnSound').onclick=()=>{store.sound=!store.sound;save();renderChrome();sfx.rot();};
 const canFs=()=>{
-  const sa=(matchMedia&&matchMedia('(display-mode: standalone)').matches)||(matchMedia&&matchMedia('(display-mode: fullscreen)').matches)||navigator.standalone===true;
-  if(sa)return false;
+  const fs=(matchMedia&&matchMedia('(display-mode: fullscreen)').matches)||navigator.standalone===true;
+  if(fs)return false;
   const el=document.documentElement;
   if(!el.requestFullscreen&&!el.webkitRequestFullscreen)return false;
   if(typeof document.fullscreenEnabled==='boolean')return document.fullscreenEnabled;
@@ -771,12 +771,17 @@ function toggleFs(){
   if(!canFs())return;
   try{
     if(isFs()){const ex=document.exitFullscreen||document.webkitExitFullscreen;if(ex)Promise.resolve(ex.call(document)).catch(()=>{});}
-    else{const el=document.documentElement,rq=el.requestFullscreen||el.webkitRequestFullscreen;if(rq)Promise.resolve(rq.call(el)).catch(()=>{});}
+    else{
+      const el=document.documentElement;
+      if(el.requestFullscreen)Promise.resolve(el.requestFullscreen({navigationUI:'hide'})).catch(()=>el.requestFullscreen()).catch(()=>{});
+      else if(el.webkitRequestFullscreen)Promise.resolve(el.webkitRequestFullscreen()).catch(()=>{});
+    }
   }catch{}
 }
 $('#btnFs').onclick=toggleFs;
-document.addEventListener('fullscreenchange',()=>{syncFs();layout(true);});
-document.addEventListener('webkitfullscreenchange',()=>{syncFs();layout(true);});
+const onFsChange=()=>{syncFs();layout(true);setTimeout(()=>layout(true),150);};
+document.addEventListener('fullscreenchange',onFsChange);
+document.addEventListener('webkitfullscreenchange',onFsChange);
 syncFs();
 $('#btnTheme').onclick=()=>{store.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';save();applyTheme();};
 $('#btnHelp').onclick=()=>$('#helpModal').classList.add('show');
