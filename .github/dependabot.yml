@@ -1,0 +1,18 @@
+version: 2
+
+# pip-pip-pow has zero runtime or dev dependencies; the only thing to keep
+# current is the SHA-pinned GitHub Actions used to deploy.
+#
+# Policy: one quarterly PR with a 30-day cooldown so broken or hijacked
+# releases are caught and pulled first.
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: quarterly
+    cooldown:
+      default-days: 30
+    groups:
+      actions:
+        patterns: ['*']
