@@ -116,6 +116,7 @@ footer{display:flex;gap:8px;padding-top:10px}
   <header>
     <div class="logo">Pip Pip<b>Pow!</b></div>
     <button class="ibtn" id="btnSound" aria-label="Sound">♪</button>
+    <button class="ibtn" id="btnFs" aria-label="Fullscreen" aria-pressed="false" title="Fullscreen (F)" style="display:none">⛶</button>
     <button class="ibtn" id="btnTheme" aria-label="Toggle theme"></button>
     <button class="ibtn" id="btnHelp" aria-label="How to play">?</button>
   </header>
@@ -746,6 +747,37 @@ $('#btnUndo').onclick=doUndo;$('#btnClear').onclick=doClear;$('#btnHint').onclic
 $('#btnSkip').onclick=()=>won?nextAfterWin():(mode==='daily'?go(store.lastDiff||'medium'):step(1));
 $('#btnNext').onclick=nextAfterWin;$('#btnShare').onclick=share;
 $('#btnSound').onclick=()=>{store.sound=!store.sound;save();renderChrome();sfx.rot();};
+const canFs=()=>{
+  const sa=(matchMedia&&matchMedia('(display-mode: standalone)').matches)||(matchMedia&&matchMedia('(display-mode: fullscreen)').matches)||navigator.standalone===true;
+  if(sa)return false;
+  const el=document.documentElement;
+  if(!el.requestFullscreen&&!el.webkitRequestFullscreen)return false;
+  if(typeof document.fullscreenEnabled==='boolean')return document.fullscreenEnabled;
+  if(typeof document.webkitFullscreenEnabled==='boolean')return document.webkitFullscreenEnabled;
+  return true;
+};
+const isFs=()=>Boolean(document.fullscreenElement||document.webkitFullscreenElement);
+function syncFs(){
+  const b=$('#btnFs'),ok=canFs();
+  b.style.display=ok?'':'none';
+  if(!ok)return;
+  const on=isFs();
+  b.textContent=on?'⤢':'⛶';
+  b.setAttribute('aria-pressed',on?'true':'false');
+  b.setAttribute('aria-label',on?'Exit fullscreen':'Enter fullscreen');
+  b.title=on?'Exit fullscreen (F)':'Fullscreen (F)';
+}
+function toggleFs(){
+  if(!canFs())return;
+  try{
+    if(isFs()){const ex=document.exitFullscreen||document.webkitExitFullscreen;if(ex)Promise.resolve(ex.call(document)).catch(()=>{});}
+    else{const el=document.documentElement,rq=el.requestFullscreen||el.webkitRequestFullscreen;if(rq)Promise.resolve(rq.call(el)).catch(()=>{});}
+  }catch{}
+}
+$('#btnFs').onclick=toggleFs;
+document.addEventListener('fullscreenchange',()=>{syncFs();layout(true);});
+document.addEventListener('webkitfullscreenchange',()=>{syncFs();layout(true);});
+syncFs();
 $('#btnTheme').onclick=()=>{store.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';save();applyTheme();};
 $('#btnHelp').onclick=()=>$('#helpModal').classList.add('show');
 $('#helpClose').onclick=()=>closeModal($('#helpModal'));
@@ -754,6 +786,7 @@ addEventListener('keydown',e=>{
   const open=[...document.querySelectorAll('.modal.show')].pop();
   if(e.key==='Escape'&&open){e.preventDefault();closeModal(open);return;}
   if(!open&&!drag&&(e.metaKey||e.ctrlKey)&&!e.shiftKey&&e.key.toLowerCase()==='z'){e.preventDefault();doUndo();}
+  if(!open&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&e.key.toLowerCase()==='f'){e.preventDefault();toggleFs();}
 });
 addEventListener('resize',()=>layout(true));
 function suspendAudio(){if(ac&&ac.state==='running')ac.suspend().catch(()=>{});}
